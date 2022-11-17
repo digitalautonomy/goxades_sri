@@ -179,11 +179,7 @@ func CreateSignature(signedData *etree.Element, ctx *SigningContext) (*etree.Ele
 	signature := etree.Element{
 		Space: ctx.DsigNamespacePrefix,
 		Tag:   dsig.SignatureTag,
-		Attr: []etree.Attr{
-			{Key: "Id", Value: "Signature"},
-			{Key: "xmlns", Value: dsig.Namespace},
-			//{Space: "xmlns", Key: xmldsigPrefix, Value: dsig.Namespace},
-		},
+		Attr:  attrs,
 		Child: []etree.Token{signedInfo, signatureValue, keyInfo, object},
 	}
 	return &signature, nil
