@@ -283,7 +283,7 @@ func testObject(t *testing.T, keyInfo *etree.Element, ctx *SigningContext) {
 
 	xmlnsAttr := qualifyingProperties.SelectAttr("xmlns" + ":" + Prefix)
 	require.NotEmpty(t, xmlnsAttr)
-	require.Equal(t, Namespace, xmlnsAttr.Value)
+	require.Equal(t, EtsiNamespace, xmlnsAttr.Value)
 
 	targetAttr := qualifyingProperties.SelectAttr(":" + targetAttr)
 	require.NotEmpty(t, targetAttr)

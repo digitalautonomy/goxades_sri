@@ -15,7 +15,7 @@ import (
 const (
 	xmldsigPrefix string = ""
 	Prefix        string = "xades"
-	Namespace     string = "http://uri.etsi.org/01903/v1.3.2#"
+	EtsiNamespace string = "http://uri.etsi.org/01903/v1.3.2#"
 )
 
 const (
@@ -131,8 +131,8 @@ func CreateSignature(signedData *etree.Element, ctx *SigningContext) (*etree.Ele
 		signingTime = time.Now()
 	}
 	//DigestValue of signedProperties
-	signedProperties := createSignedProperties(&ctx.KeyStore, signingTime)
-	qualifiedSignedProperties := createQualifiedSignedProperties(signedProperties)
+	signedProperties := ctx.createSignedProperties(signingTime)
+	qualifiedSignedProperties := ctx.createQualifiedSignedProperties(signedProperties)
 
 	digestProperties, err := DigestValue(qualifiedSignedProperties, &ctx.PropertiesContext.Canonicalizer, ctx.PropertiesContext.Hash)
 	if err != nil {
@@ -140,8 +140,8 @@ func CreateSignature(signedData *etree.Element, ctx *SigningContext) (*etree.Ele
 	}
 
 	//SignatureValue
-	signedInfo := createSignedInfo(string(digestData), string(digestProperties), ctx)
-	qualifiedSignedInfo := createQualifiedSignedInfo(signedInfo)
+	signedInfo := ctx.createSignedInfo(string(digestData), string(digestProperties))
+	qualifiedSignedInfo := ctx.createQualifiedSignedInfo(signedInfo)
 
 	if err != nil {
 		return nil, err
@@ -151,9 +151,9 @@ func CreateSignature(signedData *etree.Element, ctx *SigningContext) (*etree.Ele
 		return nil, err
 	}
 
-	signatureValue := createSignatureValue(signatureValueText)
-	keyInfo := createKeyInfo(base64.StdEncoding.EncodeToString(ctx.KeyStore.CertBinary))
-	object := createObject(signedProperties)
+	signatureValue := ctx.createSignatureValue(signatureValueText)
+	keyInfo := ctx.createKeyInfo(base64.StdEncoding.EncodeToString(ctx.KeyStore.CertBinary))
+	object := ctx.createObject(signedProperties)
 
 	signature := etree.Element{
 		Space: xmldsigPrefix,
@@ -168,13 +168,13 @@ func CreateSignature(signedData *etree.Element, ctx *SigningContext) (*etree.Ele
 	return &signature, nil
 }
 
-func createQualifiedSignedInfo(signedInfo *etree.Element) *etree.Element {
+func (ctx *SigningContext) createQualifiedSignedInfo(signedInfo *etree.Element) *etree.Element {
 	qualifiedSignedInfo := signedInfo.Copy()
 	qualifiedSignedInfo.Attr = append(qualifiedSignedInfo.Attr, etree.Attr{Space: "xmlns", Key: xmldsigPrefix, Value: dsig.Namespace})
 	return qualifiedSignedInfo
 }
-func createSignedInfo(digestValueDataText string, digestValuePropertiesText string, ctx *SigningContext) *etree.Element {
 
+func (ctx *SigningContext) createSignedInfo(digestValueDataText string, digestValuePropertiesText string) *etree.Element {
 	var transformEnvSign etree.Element
 	if ctx.DataContext.IsEnveloped {
 		transformEnvSign = etree.Element{
@@ -289,7 +289,7 @@ func createSignedInfo(digestValueDataText string, digestValuePropertiesText stri
 	return &signedInfo
 }
 
-func createSignatureValue(base64Signature string) *etree.Element {
+func (ctx *SigningContext) createSignatureValue(base64Signature string) *etree.Element {
 	signatureValue := etree.Element{
 		Space: xmldsigPrefix,
 		Tag:   dsig.SignatureValueTag,
@@ -298,7 +298,7 @@ func createSignatureValue(base64Signature string) *etree.Element {
 	return &signatureValue
 }
 
-func createKeyInfo(base64Certificate string) *etree.Element {
+func (ctx *SigningContext) createKeyInfo(base64Certificate string) *etree.Element {
 
 	x509Cerificate := etree.Element{
 		Space: xmldsigPrefix,
@@ -319,13 +319,12 @@ func createKeyInfo(base64Certificate string) *etree.Element {
 	return &keyInfo
 }
 
-func createObject(signedProperties *etree.Element) *etree.Element {
-
+func (ctx *SigningContext) createObject(signedProperties *etree.Element) *etree.Element {
 	qualifyingProperties := etree.Element{
 		Space: Prefix,
 		Tag:   QualifyingPropertiesTag,
 		Attr: []etree.Attr{
-			{Space: "xmlns", Key: Prefix, Value: Namespace},
+			{Space: "xmlns", Key: Prefix, Value: EtsiNamespace},
 			{Key: targetAttr, Value: "#Signature"},
 		},
 		Child: []etree.Token{signedProperties},
@@ -338,19 +337,19 @@ func createObject(signedProperties *etree.Element) *etree.Element {
 	return &object
 }
 
-func createQualifiedSignedProperties(signedProperties *etree.Element) *etree.Element {
+func (ctx *SigningContext) createQualifiedSignedProperties(signedProperties *etree.Element) *etree.Element {
 
 	qualifiedSignedProperties := signedProperties.Copy()
 	qualifiedSignedProperties.Attr = append(
 		signedProperties.Attr,
 		etree.Attr{Space: "xmlns", Key: xmldsigPrefix, Value: dsig.Namespace},
-		etree.Attr{Space: "xmlns", Key: Prefix, Value: Namespace},
+		etree.Attr{Space: "xmlns", Key: Prefix, Value: EtsiNamespace},
 	)
 
 	return qualifiedSignedProperties
 }
 
-func createSignedProperties(keystore *MemoryX509KeyStore, signTime time.Time) *etree.Element {
+func (ctx *SigningContext) createSignedProperties(signTime time.Time) *etree.Element {
 
 	digestMethod := etree.Element{
 		Space: xmldsigPrefix,
@@ -364,7 +363,7 @@ func createSignedProperties(keystore *MemoryX509KeyStore, signTime time.Time) *e
 		Space: xmldsigPrefix,
 		Tag:   dsig.DigestValueTag,
 	}
-	hash := sha1.Sum(keystore.CertBinary)
+	hash := sha1.Sum(ctx.KeyStore.CertBinary)
 	digestValue.SetText(base64.StdEncoding.EncodeToString(hash[0:]))
 
 	certDigest := etree.Element{
@@ -377,12 +376,12 @@ func createSignedProperties(keystore *MemoryX509KeyStore, signTime time.Time) *e
 		Space: xmldsigPrefix,
 		Tag:   "X509IssuerName",
 	}
-	x509IssuerName.SetText(keystore.Cert.Issuer.String())
+	x509IssuerName.SetText(ctx.KeyStore.Cert.Issuer.String())
 	x509SerialNumber := etree.Element{
 		Space: xmldsigPrefix,
 		Tag:   "X509SerialNumber",
 	}
-	x509SerialNumber.SetText(keystore.Cert.SerialNumber.String())
+	x509SerialNumber.SetText(ctx.KeyStore.Cert.SerialNumber.String())
 
 	issuerSerial := etree.Element{
 		Space: Prefix,
