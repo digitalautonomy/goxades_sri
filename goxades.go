@@ -13,7 +13,6 @@ import (
 )
 
 const (
-	Prefix        string = "xades"
 	EtsiNamespace string = "http://uri.etsi.org/01903/v1.3.2#"
 )
 
@@ -46,12 +45,14 @@ var signatureMethodIdentifiers = map[crypto.Hash]string{
 }
 
 type SigningContext struct {
-	DataContext         SignedDataContext
-	PropertiesContext   SignedPropertiesContext
-	Canonicalizer       dsig.Canonicalizer
-	Hash                crypto.Hash
-	KeyStore            MemoryX509KeyStore
-	DsigNamespacePrefix string
+	DataContext             SignedDataContext
+	PropertiesContext       SignedPropertiesContext
+	Canonicalizer           dsig.Canonicalizer
+	Hash                    crypto.Hash
+	KeyStore                MemoryX509KeyStore
+	DsigNamespacePrefix     string
+	EtsiNamespacePrefix     string
+	EtsiNamespaceAtTopLevel bool
 }
 
 type SignedDataContext struct {
@@ -117,6 +118,17 @@ func SignatureValue(element *etree.Element, canonicalizer *dsig.Canonicalizer, h
 	return
 }
 
+func namespaceTag(ns, value string) etree.Attr {
+	a := etree.Attr{Value: value}
+	if ns == "" {
+		a.Key = "xmlns"
+	} else {
+		a.Space = "xmlns"
+		a.Key = ns
+	}
+	return a
+}
+
 //CreateSignature create filled signature element
 func CreateSignature(signedData *etree.Element, ctx *SigningContext) (*etree.Element, error) {
 
@@ -155,6 +167,15 @@ func CreateSignature(signedData *etree.Element, ctx *SigningContext) (*etree.Ele
 	keyInfo := ctx.createKeyInfo(base64.StdEncoding.EncodeToString(ctx.KeyStore.CertBinary))
 	object := ctx.createObject(signedProperties)
 
+	attrs := []etree.Attr{
+		{Key: "Id", Value: "Signature"},
+		namespaceTag(ctx.DsigNamespacePrefix, dsig.Namespace),
+	}
+
+	if ctx.EtsiNamespaceAtTopLevel {
+		attrs = append(attrs, namespaceTag(ctx.etsiPrefix(), EtsiNamespace))
+	}
+
 	signature := etree.Element{
 		Space: ctx.DsigNamespacePrefix,
 		Tag:   dsig.SignatureTag,
@@ -166,6 +187,13 @@ func CreateSignature(signedData *etree.Element, ctx *SigningContext) (*etree.Ele
 		Child: []etree.Token{signedInfo, signatureValue, keyInfo, object},
 	}
 	return &signature, nil
+}
+
+func (ctx *SigningContext) etsiPrefix() string {
+	if ctx.EtsiNamespacePrefix == "" && ctx.DsigNamespacePrefix == "" {
+		return "xades"
+	}
+	return ctx.EtsiNamespacePrefix
 }
 
 func (ctx *SigningContext) createQualifiedSignedInfo(signedInfo *etree.Element) *etree.Element {
@@ -320,13 +348,18 @@ func (ctx *SigningContext) createKeyInfo(base64Certificate string) *etree.Elemen
 }
 
 func (ctx *SigningContext) createObject(signedProperties *etree.Element) *etree.Element {
+	attrs := []etree.Attr{}
+
+	if !ctx.EtsiNamespaceAtTopLevel {
+		attrs = append(attrs, namespaceTag(ctx.etsiPrefix(), EtsiNamespace))
+	}
+
+	attrs = append(attrs, etree.Attr{Key: targetAttr, Value: "#Signature"})
+
 	qualifyingProperties := etree.Element{
-		Space: Prefix,
+		Space: ctx.etsiPrefix(),
 		Tag:   QualifyingPropertiesTag,
-		Attr: []etree.Attr{
-			{Space: "xmlns", Key: Prefix, Value: EtsiNamespace},
-			{Key: targetAttr, Value: "#Signature"},
-		},
+		Attr:  attrs,
 		Child: []etree.Token{signedProperties},
 	}
 	object := etree.Element{
@@ -343,7 +376,7 @@ func (ctx *SigningContext) createQualifiedSignedProperties(signedProperties *etr
 	qualifiedSignedProperties.Attr = append(
 		signedProperties.Attr,
 		etree.Attr{Space: "xmlns", Key: ctx.DsigNamespacePrefix, Value: dsig.Namespace},
-		etree.Attr{Space: "xmlns", Key: Prefix, Value: EtsiNamespace},
+		etree.Attr{Space: "xmlns", Key: ctx.etsiPrefix(), Value: EtsiNamespace},
 	)
 
 	return qualifiedSignedProperties
@@ -367,7 +400,7 @@ func (ctx *SigningContext) createSignedProperties(signTime time.Time) *etree.Ele
 	digestValue.SetText(base64.StdEncoding.EncodeToString(hash[0:]))
 
 	certDigest := etree.Element{
-		Space: Prefix,
+		Space: ctx.etsiPrefix(),
 		Tag:   CertDigestTag,
 		Child: []etree.Token{&digestMethod, &digestValue},
 	}
@@ -384,37 +417,37 @@ func (ctx *SigningContext) createSignedProperties(signTime time.Time) *etree.Ele
 	x509SerialNumber.SetText(ctx.KeyStore.Cert.SerialNumber.String())
 
 	issuerSerial := etree.Element{
-		Space: Prefix,
+		Space: ctx.etsiPrefix(),
 		Tag:   IssuerSerialTag,
 		Child: []etree.Token{&x509IssuerName, &x509SerialNumber},
 	}
 
 	cert := etree.Element{
-		Space: Prefix,
+		Space: ctx.etsiPrefix(),
 		Tag:   CertTag,
 		Child: []etree.Token{&certDigest, &issuerSerial},
 	}
 
 	signingCertificate := etree.Element{
-		Space: Prefix,
+		Space: ctx.etsiPrefix(),
 		Tag:   SigningCertificateTag,
 		Child: []etree.Token{&cert},
 	}
 
 	signingTime := etree.Element{
-		Space: Prefix,
+		Space: ctx.etsiPrefix(),
 		Tag:   SigningTimeTag,
 	}
 	signingTime.SetText(signTime.Format("2006-01-02T15:04:05Z"))
 
 	signedSignatureProperties := etree.Element{
-		Space: Prefix,
+		Space: ctx.etsiPrefix(),
 		Tag:   SignedSignaturePropertiesTag,
 		Child: []etree.Token{&signingTime, &signingCertificate},
 	}
 
 	signedProperties := etree.Element{
-		Space: Prefix,
+		Space: ctx.etsiPrefix(),
 		Tag:   SignedPropertiesTag,
 		Attr: []etree.Attr{
 			{Key: "Id", Value: "SignedProperties"},

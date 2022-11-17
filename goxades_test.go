@@ -120,9 +120,10 @@ func getSigningContextMap(t *testing.T) (ctxMap map[*SigningContext]string) {
 			Hash:          crypto.SHA256,
 			SigninigTime:  signingTime,
 		},
-		Canonicalizer: c14N10ExclusiveCanonicalizer,
-		Hash:          crypto.SHA256,
-		KeyStore:      *keyStore,
+		Canonicalizer:       c14N10ExclusiveCanonicalizer,
+		Hash:                crypto.SHA256,
+		KeyStore:            *keyStore,
+		EtsiNamespacePrefix: "xades",
 	}
 	ctxMap[ctx] = "qCBQF0f51nnIa44jR89dgE2KBhnrkq41i0YFYtpIDXQFpzoFubuWLuHbEeP1V8KTImkWkSWzsg2h8sdVaZ7r7E6ABZKyCC4u12aHI/Tzq0yuNP9/VkdIzkKOLRbzPfjQVSZWGjkpOnwA5Q2HsN579oqQovrTikJ+W5At9ux79SOLNmZJFZp5QMC2Hn1fWoBWdXnuwAFLLqhspVpPRZq9qXeVcxwtbWN+Z9KYEt96NLWCgHYAxqrNauN4IJ+dpYPOo3w1NHucsb78PvWCGHlfmBYOgAzGkfqTJ/fqfbBTxeYBWBJKVYvJjlMivLh3Ss/dHSJEvU6pRFLUFXf9D9KHnQ=="
 
@@ -137,9 +138,10 @@ func getSigningContextMap(t *testing.T) (ctxMap map[*SigningContext]string) {
 			Hash:          crypto.SHA1,
 			SigninigTime:  signingTime,
 		},
-		Canonicalizer: c14N10ExclusiveCanonicalizer,
-		Hash:          crypto.SHA256,
-		KeyStore:      *keyStore,
+		Canonicalizer:       c14N10ExclusiveCanonicalizer,
+		Hash:                crypto.SHA256,
+		KeyStore:            *keyStore,
+		EtsiNamespacePrefix: "xades",
 	}
 	ctxMap[ctx] = "0NjE/1BhL8vRz3bKujsFFkuyPvnANBVdWWShf7RIhrElJOg9TtuK6QGPrADx8B5zjCPOA74Gi7HdMmlQa5SNyAny+qGElMquw9i2ou4VSZkhaho1Xz9Hn5DprqKBnCLL0fS7JV+5TgmfoMz0R2oEWwFzoa7fz4rFu84AGKq4tidwk8Qq5hJ6XsVnLiaQq1h4etKGBh2wSopMFemI5k8dbS/VK/M+Ue7N01QgnC5FzRrzEw/5+ZTQndnUfpa11LzGJuretHuQYVrDLzbuqtOmNVyEjyziACB3yr8D2MFYaLZutQ9JBa44EuVjQj7w9qBLFk1ceBee/TDxc5hb5Zo+8Q=="
 
@@ -158,8 +160,48 @@ func getSigningContextMap(t *testing.T) (ctxMap map[*SigningContext]string) {
 		Hash:                crypto.SHA256,
 		KeyStore:            *keyStore,
 		DsigNamespacePrefix: "ds",
+		EtsiNamespacePrefix: "xades",
 	}
 	ctxMap[ctx] = "tGaU8GC1mfQgHlJJUznKLIvUEGZqfjp7VyatB71ctAlUMrdqDlzbYAGoFQE5jru+z/OxBvKFiSK9cYP85Y2YXajm6cdnNumtA7nfrBhQoldeoKQZZvqVoPBsL48YzDpBLutnRrqcBzsYiUs8PGpLaciwIKFaHIFEl6H7Z4W4wGsdAn99IFOmeAdo403z6AerYrZgZQeEpiI86Z5OIHbem6lqxf/DPW4BNWYbREVH7srPsU1jGPhZKDInUJJ4iBiuGXWV9O15FE97VDjleQQtB8rC30dZFcFQyv9ML6NPIntwBw+KqXmb8ThKyi3qqD3qIaKDTCecoaJXktvWiRvYMw=="
+
+	ctx = &SigningContext{
+		DataContext: SignedDataContext{
+			Canonicalizer: c14N10ExclusiveCanonicalizer,
+			Hash:          crypto.SHA1,
+			ReferenceURI:  "#signedData",
+		},
+		PropertiesContext: SignedPropertiesContext{
+			Canonicalizer: c14N10ExclusiveCanonicalizer,
+			Hash:          crypto.SHA1,
+			SigninigTime:  signingTime,
+		},
+		Canonicalizer:       c14N10ExclusiveCanonicalizer,
+		Hash:                crypto.SHA256,
+		KeyStore:            *keyStore,
+		DsigNamespacePrefix: "ds",
+		EtsiNamespacePrefix: "etsi",
+	}
+	ctxMap[ctx] = "ScpgdKc5PFiUCeewSsrxGcjpaf57s+brO0/vTg3DDA04y5MqptMToPmgghNH0lEf5yq9KMIuD4HsSHUbz6RNIwLAf+8ZP4eQHNpiIyCFsi/akFShXYxe7gsBSzXvqBce/GjShh+1e9W1ZU78bAV2MpActhgdlvL3cOglctvc2TOMp9tIvRP7YByn1NA03f+sZal21pDIes3s6F5gW7SjvXBEqHGjUnJHNiAXdZYjV2cBym53fVtV7buxQj0f1t9oRVI/yQj1Qf6VfMRmASotxGu9wQYu+azr8kXUE5je12jGmqTj9/HlAXH7g+4GOwoODr8DOxXV9LzEG4wt75y3oA=="
+
+	ctx = &SigningContext{
+		DataContext: SignedDataContext{
+			Canonicalizer: c14N10ExclusiveCanonicalizer,
+			Hash:          crypto.SHA1,
+			ReferenceURI:  "#signedData",
+		},
+		PropertiesContext: SignedPropertiesContext{
+			Canonicalizer: c14N10ExclusiveCanonicalizer,
+			Hash:          crypto.SHA1,
+			SigninigTime:  signingTime,
+		},
+		Canonicalizer:           c14N10ExclusiveCanonicalizer,
+		Hash:                    crypto.SHA256,
+		KeyStore:                *keyStore,
+		DsigNamespacePrefix:     "ds",
+		EtsiNamespacePrefix:     "etsi",
+		EtsiNamespaceAtTopLevel: true,
+	}
+	ctxMap[ctx] = "ScpgdKc5PFiUCeewSsrxGcjpaf57s+brO0/vTg3DDA04y5MqptMToPmgghNH0lEf5yq9KMIuD4HsSHUbz6RNIwLAf+8ZP4eQHNpiIyCFsi/akFShXYxe7gsBSzXvqBce/GjShh+1e9W1ZU78bAV2MpActhgdlvL3cOglctvc2TOMp9tIvRP7YByn1NA03f+sZal21pDIes3s6F5gW7SjvXBEqHGjUnJHNiAXdZYjV2cBym53fVtV7buxQj0f1t9oRVI/yQj1Qf6VfMRmASotxGu9wQYu+azr8kXUE5je12jGmqTj9/HlAXH7g+4GOwoODr8DOxXV9LzEG4wt75y3oA=="
 
 	return
 }
@@ -295,29 +337,33 @@ func testKeyInfo(t *testing.T, keyInfo *etree.Element, ctx *SigningContext) {
 }
 
 func testObject(t *testing.T, keyInfo *etree.Element, ctx *SigningContext) {
-	qualifyingProperties := keyInfo.FindElement(Prefix + ":" + QualifyingPropertiesTag)
+	qualifyingProperties := keyInfo.FindElement(ctx.etsiPrefix() + ":" + QualifyingPropertiesTag)
 	require.NotEmpty(t, qualifyingProperties)
 	//require.Equal(t, Prefix, qualifyingProperties.Space)
 
-	xmlnsAttr := qualifyingProperties.SelectAttr("xmlns" + ":" + Prefix)
-	require.NotEmpty(t, xmlnsAttr)
-	require.Equal(t, EtsiNamespace, xmlnsAttr.Value)
+	xmlnsAttr := qualifyingProperties.SelectAttr("xmlns" + ":" + ctx.etsiPrefix())
+	if !ctx.EtsiNamespaceAtTopLevel {
+		require.NotEmpty(t, xmlnsAttr)
+		require.Equal(t, EtsiNamespace, xmlnsAttr.Value)
+	} else {
+		require.Empty(t, xmlnsAttr)
+	}
 
 	targetAttr := qualifyingProperties.SelectAttr(":" + targetAttr)
 	require.NotEmpty(t, targetAttr)
 	require.Equal(t, "#Signature", targetAttr.Value)
 
-	signedProperties := qualifyingProperties.FindElement(Prefix + ":" + SignedPropertiesTag)
+	signedProperties := qualifyingProperties.FindElement(ctx.etsiPrefix() + ":" + SignedPropertiesTag)
 	require.NotEmpty(t, signedProperties)
 
 	idAttr := signedProperties.SelectAttr(":" + "Id")
 	require.NotEmpty(t, idAttr)
 	require.Equal(t, "SignedProperties", idAttr.Value)
 
-	signedSignatureProperties := signedProperties.FindElement(Prefix + ":" + SignedSignaturePropertiesTag)
+	signedSignatureProperties := signedProperties.FindElement(ctx.etsiPrefix() + ":" + SignedSignaturePropertiesTag)
 	require.NotEmpty(t, signedSignatureProperties)
 
-	signingTime := signedSignatureProperties.FindElement(Prefix + ":" + SigningTimeTag)
+	signingTime := signedSignatureProperties.FindElement(ctx.etsiPrefix() + ":" + SigningTimeTag)
 	require.NotEmpty(t, signingTime)
 
 	signTime, err := time.Parse("2006-01-02T15:04:05Z", signingTime.Text())
@@ -326,13 +372,13 @@ func testObject(t *testing.T, keyInfo *etree.Element, ctx *SigningContext) {
 		require.Equal(t, ctx.PropertiesContext.SigninigTime.Format("2006-01-02T15:04:05Z"), signTime.Format("2006-01-02T15:04:05Z"))
 	}
 
-	signingCertificate := signedSignatureProperties.FindElement(Prefix + ":" + SigningCertificateTag)
+	signingCertificate := signedSignatureProperties.FindElement(ctx.etsiPrefix() + ":" + SigningCertificateTag)
 	require.NotEmpty(t, signingCertificate)
 
-	cert := signingCertificate.FindElement(Prefix + ":" + CertTag)
+	cert := signingCertificate.FindElement(ctx.etsiPrefix() + ":" + CertTag)
 	require.NotEmpty(t, cert)
 
-	certDigest := cert.FindElement(Prefix + ":" + CertDigestTag)
+	certDigest := cert.FindElement(ctx.etsiPrefix() + ":" + CertDigestTag)
 	require.NotEmpty(t, certDigest)
 
 	digestMethod := certDigest.FindElement(ctx.DsigNamespacePrefix + ":" + dsig.DigestMethodTag)
@@ -346,7 +392,7 @@ func testObject(t *testing.T, keyInfo *etree.Element, ctx *SigningContext) {
 	hash := sha1.Sum(ctx.KeyStore.CertBinary)
 	require.Equal(t, base64.StdEncoding.EncodeToString(hash[0:]), digestValue.Text())
 
-	issuerSerial := cert.FindElement(Prefix + ":" + IssuerSerialTag)
+	issuerSerial := cert.FindElement(ctx.etsiPrefix() + ":" + IssuerSerialTag)
 	require.NotEmpty(t, issuerSerial)
 
 	x509IssuerName := issuerSerial.FindElement(ctx.DsigNamespacePrefix + ":" + "X509IssuerName")
