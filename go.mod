@@ -1,4 +1,4 @@
-module github.com/artemkunich/goxades
+module github.com/digitalautonomy/goxades_sri
 
 go 1.15
 
