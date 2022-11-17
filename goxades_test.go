@@ -143,6 +143,24 @@ func getSigningContextMap(t *testing.T) (ctxMap map[*SigningContext]string) {
 	}
 	ctxMap[ctx] = "0NjE/1BhL8vRz3bKujsFFkuyPvnANBVdWWShf7RIhrElJOg9TtuK6QGPrADx8B5zjCPOA74Gi7HdMmlQa5SNyAny+qGElMquw9i2ou4VSZkhaho1Xz9Hn5DprqKBnCLL0fS7JV+5TgmfoMz0R2oEWwFzoa7fz4rFu84AGKq4tidwk8Qq5hJ6XsVnLiaQq1h4etKGBh2wSopMFemI5k8dbS/VK/M+Ue7N01QgnC5FzRrzEw/5+ZTQndnUfpa11LzGJuretHuQYVrDLzbuqtOmNVyEjyziACB3yr8D2MFYaLZutQ9JBa44EuVjQj7w9qBLFk1ceBee/TDxc5hb5Zo+8Q=="
 
+	ctx = &SigningContext{
+		DataContext: SignedDataContext{
+			Canonicalizer: c14N10ExclusiveCanonicalizer,
+			Hash:          crypto.SHA1,
+			ReferenceURI:  "#signedData",
+		},
+		PropertiesContext: SignedPropertiesContext{
+			Canonicalizer: c14N10ExclusiveCanonicalizer,
+			Hash:          crypto.SHA1,
+			SigninigTime:  signingTime,
+		},
+		Canonicalizer:       c14N10ExclusiveCanonicalizer,
+		Hash:                crypto.SHA256,
+		KeyStore:            *keyStore,
+		DsigNamespacePrefix: "ds",
+	}
+	ctxMap[ctx] = "tGaU8GC1mfQgHlJJUznKLIvUEGZqfjp7VyatB71ctAlUMrdqDlzbYAGoFQE5jru+z/OxBvKFiSK9cYP85Y2YXajm6cdnNumtA7nfrBhQoldeoKQZZvqVoPBsL48YzDpBLutnRrqcBzsYiUs8PGpLaciwIKFaHIFEl6H7Z4W4wGsdAn99IFOmeAdo403z6AerYrZgZQeEpiI86Z5OIHbem6lqxf/DPW4BNWYbREVH7srPsU1jGPhZKDInUJJ4iBiuGXWV9O15FE97VDjleQQtB8rC30dZFcFQyv9ML6NPIntwBw+KqXmb8ThKyi3qqD3qIaKDTCecoaJXktvWiRvYMw=="
+
 	return
 }
 
@@ -165,55 +183,55 @@ func testSignature(t *testing.T, signedData *etree.Element, ctx *SigningContext)
 	signature, err := CreateSignature(signedData, ctx)
 	require.NoError(t, err)
 
-	signedInfo := signature.FindElement(xmldsigPrefix + ":" + dsig.SignedInfoTag)
+	signedInfo := signature.FindElement(ctx.DsigNamespacePrefix + ":" + dsig.SignedInfoTag)
 	require.NotEmpty(t, signedInfo)
 	testSignedInfo(t, signedInfo, ctx)
 
-	signatureValue := signature.FindElement(xmldsigPrefix + ":" + dsig.SignatureValueTag)
+	signatureValue := signature.FindElement(ctx.DsigNamespacePrefix + ":" + dsig.SignatureValueTag)
 	require.NotEmpty(t, signatureValue)
 
-	keyInfo := signature.FindElement(xmldsigPrefix + ":" + dsig.KeyInfoTag)
+	keyInfo := signature.FindElement(ctx.DsigNamespacePrefix + ":" + dsig.KeyInfoTag)
 	require.NotEmpty(t, keyInfo)
 	testKeyInfo(t, keyInfo, ctx)
 
-	object := signature.FindElement(xmldsigPrefix + ":" + "Object")
+	object := signature.FindElement(ctx.DsigNamespacePrefix + ":" + "Object")
 	require.NotEmpty(t, keyInfo)
 	testObject(t, object, ctx)
 }
 
 func testSignedInfo(t *testing.T, signedInfo *etree.Element, ctx *SigningContext) {
 
-	canonicalizationMethodElement := signedInfo.FindElement(xmldsigPrefix + ":" + dsig.CanonicalizationMethodTag)
+	canonicalizationMethodElement := signedInfo.FindElement(ctx.DsigNamespacePrefix + ":" + dsig.CanonicalizationMethodTag)
 	require.NotEmpty(t, canonicalizationMethodElement)
 
 	canonicalizationMethodAttr := canonicalizationMethodElement.SelectAttr(":" + dsig.AlgorithmAttr)
 	require.NotEmpty(t, canonicalizationMethodAttr)
 	require.Equal(t, ctx.Canonicalizer.Algorithm().String(), canonicalizationMethodAttr.Value)
 
-	signatureMethodElement := signedInfo.FindElement(xmldsigPrefix + ":" + dsig.SignatureMethodTag)
+	signatureMethodElement := signedInfo.FindElement(ctx.DsigNamespacePrefix + ":" + dsig.SignatureMethodTag)
 	require.NotEmpty(t, signatureMethodElement)
 
 	signatureMethodAttr := signatureMethodElement.SelectAttr(":" + dsig.AlgorithmAttr)
 	require.NotEmpty(t, signatureMethodAttr)
 	require.Equal(t, signatureMethodIdentifiers[ctx.Hash], signatureMethodAttr.Value)
 
-	referenceElements := signedInfo.FindElements(xmldsigPrefix + ":" + dsig.ReferenceTag)
+	referenceElements := signedInfo.FindElements(ctx.DsigNamespacePrefix + ":" + dsig.ReferenceTag)
 	require.NotEmpty(t, referenceElements)
 	require.Len(t, referenceElements, 2)
-	testReferenceData(t, referenceElements[0], &ctx.DataContext)
-	testReferenceProperties(t, referenceElements[1], &ctx.PropertiesContext)
+	testReferenceData(t, referenceElements[0], &ctx.DataContext, ctx)
+	testReferenceProperties(t, referenceElements[1], &ctx.PropertiesContext, ctx)
 
 }
 
-func testReferenceData(t *testing.T, referenceElement *etree.Element, ctx *SignedDataContext) {
+func testReferenceData(t *testing.T, referenceElement *etree.Element, ctx *SignedDataContext, sctx *SigningContext) {
 	idAttr := referenceElement.SelectAttr(":" + dsig.URIAttr)
 	require.NotEmpty(t, idAttr)
 	require.Equal(t, ctx.ReferenceURI, idAttr.Value)
 
-	transformsElement := referenceElement.FindElement(xmldsigPrefix + ":" + dsig.TransformsTag)
+	transformsElement := referenceElement.FindElement(sctx.DsigNamespacePrefix + ":" + dsig.TransformsTag)
 	require.NotEmpty(t, transformsElement)
 
-	transformElements := transformsElement.FindElements(xmldsigPrefix + ":" + dsig.TransformTag)
+	transformElements := transformsElement.FindElements(sctx.DsigNamespacePrefix + ":" + dsig.TransformTag)
 	require.NotEmpty(t, transformElements)
 
 	var algorithmAttr *etree.Attr
@@ -231,25 +249,25 @@ func testReferenceData(t *testing.T, referenceElement *etree.Element, ctx *Signe
 	require.NotEmpty(t, algorithmAttr)
 	require.Equal(t, ctx.Canonicalizer.Algorithm().String(), algorithmAttr.Value)
 
-	digestMethod := referenceElement.FindElement(xmldsigPrefix + ":" + dsig.DigestMethodTag)
+	digestMethod := referenceElement.FindElement(sctx.DsigNamespacePrefix + ":" + dsig.DigestMethodTag)
 	require.NotEmpty(t, digestMethod)
 	algorithmAttr = digestMethod.SelectAttr(":" + dsig.AlgorithmAttr)
 	require.NotEmpty(t, algorithmAttr)
 	require.Equal(t, digestAlgorithmIdentifiers[ctx.Hash], algorithmAttr.Value)
 
-	digestValue := referenceElement.FindElement(xmldsigPrefix + ":" + dsig.DigestValueTag)
+	digestValue := referenceElement.FindElement(sctx.DsigNamespacePrefix + ":" + dsig.DigestValueTag)
 	require.NotEmpty(t, digestValue)
 }
 
-func testReferenceProperties(t *testing.T, referenceElement *etree.Element, ctx *SignedPropertiesContext) {
+func testReferenceProperties(t *testing.T, referenceElement *etree.Element, ctx *SignedPropertiesContext, sctx *SigningContext) {
 	idAttr := referenceElement.SelectAttr(":" + dsig.URIAttr)
 	require.NotEmpty(t, idAttr)
 	require.Equal(t, "#SignedProperties", idAttr.Value)
 
-	transformsElement := referenceElement.FindElement(xmldsigPrefix + ":" + dsig.TransformsTag)
+	transformsElement := referenceElement.FindElement(sctx.DsigNamespacePrefix + ":" + dsig.TransformsTag)
 	require.NotEmpty(t, transformsElement)
 
-	transformElements := transformsElement.FindElements(xmldsigPrefix + ":" + dsig.TransformTag)
+	transformElements := transformsElement.FindElements(sctx.DsigNamespacePrefix + ":" + dsig.TransformTag)
 	require.NotEmpty(t, transformElements)
 	require.Len(t, transformElements, 1)
 
@@ -257,21 +275,21 @@ func testReferenceProperties(t *testing.T, referenceElement *etree.Element, ctx 
 	require.NotEmpty(t, algorithmAttr)
 	require.Equal(t, ctx.Canonicalizer.Algorithm().String(), algorithmAttr.Value)
 
-	digestMethod := referenceElement.FindElement(xmldsigPrefix + ":" + dsig.DigestMethodTag)
+	digestMethod := referenceElement.FindElement(sctx.DsigNamespacePrefix + ":" + dsig.DigestMethodTag)
 	require.NotEmpty(t, digestMethod)
 	algorithmAttr = digestMethod.SelectAttr(":" + dsig.AlgorithmAttr)
 	require.NotEmpty(t, algorithmAttr)
 	require.Equal(t, digestAlgorithmIdentifiers[ctx.Hash], algorithmAttr.Value)
 
-	digestValue := referenceElement.FindElement(xmldsigPrefix + ":" + dsig.DigestValueTag)
+	digestValue := referenceElement.FindElement(sctx.DsigNamespacePrefix + ":" + dsig.DigestValueTag)
 	require.NotEmpty(t, digestValue)
 }
 
 func testKeyInfo(t *testing.T, keyInfo *etree.Element, ctx *SigningContext) {
-	x509Data := keyInfo.FindElement(xmldsigPrefix + ":" + dsig.X509DataTag)
+	x509Data := keyInfo.FindElement(ctx.DsigNamespacePrefix + ":" + dsig.X509DataTag)
 	require.NotEmpty(t, x509Data)
 
-	x509Certificate := x509Data.FindElement(xmldsigPrefix + ":" + dsig.X509CertificateTag)
+	x509Certificate := x509Data.FindElement(ctx.DsigNamespacePrefix + ":" + dsig.X509CertificateTag)
 	require.NotEmpty(t, x509Certificate)
 	require.Equal(t, base64.StdEncoding.EncodeToString(ctx.KeyStore.CertBinary), x509Certificate.Text())
 }
@@ -317,13 +335,13 @@ func testObject(t *testing.T, keyInfo *etree.Element, ctx *SigningContext) {
 	certDigest := cert.FindElement(Prefix + ":" + CertDigestTag)
 	require.NotEmpty(t, certDigest)
 
-	digestMethod := certDigest.FindElement(xmldsigPrefix + ":" + dsig.DigestMethodTag)
+	digestMethod := certDigest.FindElement(ctx.DsigNamespacePrefix + ":" + dsig.DigestMethodTag)
 	require.NotEmpty(t, digestMethod)
 	algorithmAttr := digestMethod.SelectAttr(":" + dsig.AlgorithmAttr)
 	require.NotEmpty(t, algorithmAttr)
 	require.Equal(t, digestAlgorithmIdentifiers[crypto.SHA1], algorithmAttr.Value)
 
-	digestValue := certDigest.FindElement(xmldsigPrefix + ":" + dsig.DigestValueTag)
+	digestValue := certDigest.FindElement(ctx.DsigNamespacePrefix + ":" + dsig.DigestValueTag)
 	require.NotEmpty(t, digestValue)
 	hash := sha1.Sum(ctx.KeyStore.CertBinary)
 	require.Equal(t, base64.StdEncoding.EncodeToString(hash[0:]), digestValue.Text())
@@ -331,11 +349,11 @@ func testObject(t *testing.T, keyInfo *etree.Element, ctx *SigningContext) {
 	issuerSerial := cert.FindElement(Prefix + ":" + IssuerSerialTag)
 	require.NotEmpty(t, issuerSerial)
 
-	x509IssuerName := issuerSerial.FindElement(xmldsigPrefix + ":" + "X509IssuerName")
+	x509IssuerName := issuerSerial.FindElement(ctx.DsigNamespacePrefix + ":" + "X509IssuerName")
 	require.NotEmpty(t, x509IssuerName)
 	require.Equal(t, ctx.KeyStore.Cert.Issuer.String(), x509IssuerName.Text())
 
-	x509SerialNumber := issuerSerial.FindElement(xmldsigPrefix + ":" + "X509SerialNumber")
+	x509SerialNumber := issuerSerial.FindElement(ctx.DsigNamespacePrefix + ":" + "X509SerialNumber")
 	require.NotEmpty(t, x509SerialNumber)
 	require.Equal(t, ctx.KeyStore.Cert.SerialNumber.String(), x509SerialNumber.Text())
 }
@@ -344,7 +362,7 @@ func testSignatureValue(t *testing.T, signedData *etree.Element, ctx *SigningCon
 	signature, err := CreateSignature(signedData, ctx)
 	require.NoError(t, err)
 
-	signatureValue := signature.FindElement(xmldsigPrefix + ":" + dsig.SignatureValueTag)
+	signatureValue := signature.FindElement(ctx.DsigNamespacePrefix + ":" + dsig.SignatureValueTag)
 	require.NotEmpty(t, signatureValue)
 	require.Equal(t, expectedValue, signatureValue.Text())
 }
