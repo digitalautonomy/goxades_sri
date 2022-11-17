@@ -6,6 +6,8 @@ import (
 	"crypto/sha1"
 	"crypto/x509"
 	"encoding/base64"
+	"fmt"
+	"math/big"
 	"time"
 
 	"github.com/beevik/etree"
@@ -17,19 +19,24 @@ const (
 )
 
 const (
-	SignedPropertiesTag          string = "SignedProperties"
-	SignedSignaturePropertiesTag string = "SignedSignatureProperties"
-	SigningTimeTag               string = "SigningTime"
-	SigningCertificateTag        string = "SigningCertificate"
-	CertTag                      string = "Cert"
-	IssuerSerialTag              string = "IssuerSerial"
-	CertDigestTag                string = "CertDigest"
-	QualifyingPropertiesTag      string = "QualifyingProperties"
+	SignedPropertiesTag           string = "SignedProperties"
+	SignedSignaturePropertiesTag  string = "SignedSignatureProperties"
+	SigningTimeTag                string = "SigningTime"
+	SigningCertificateTag         string = "SigningCertificate"
+	CertTag                       string = "Cert"
+	IssuerSerialTag               string = "IssuerSerial"
+	CertDigestTag                 string = "CertDigest"
+	QualifyingPropertiesTag       string = "QualifyingProperties"
+	MimeTypeTag                   string = "MimeType"
+	DescriptionTag                string = "Description"
+	DataObjectFormatTag           string = "DataObjectFormat"
+	SignedDataObjectPropertiesTag string = "SignedDataObjectProperties"
 )
 
 const (
 	signedPropertiesAttr string = "SignedProperties"
 	targetAttr           string = "Target"
+	idAttr               string = "Id"
 )
 
 var digestAlgorithmIdentifiers = map[crypto.Hash]string{
@@ -45,14 +52,27 @@ var signatureMethodIdentifiers = map[crypto.Hash]string{
 }
 
 type SigningContext struct {
-	DataContext             SignedDataContext
-	PropertiesContext       SignedPropertiesContext
-	Canonicalizer           dsig.Canonicalizer
-	Hash                    crypto.Hash
-	KeyStore                MemoryX509KeyStore
-	DsigNamespacePrefix     string
-	EtsiNamespacePrefix     string
-	EtsiNamespaceAtTopLevel bool
+	DataContext                       SignedDataContext
+	PropertiesContext                 SignedPropertiesContext
+	Canonicalizer                     dsig.Canonicalizer
+	Hash                              crypto.Hash
+	KeyStore                          MemoryX509KeyStore
+	DsigNamespacePrefix               string
+	EtsiNamespacePrefix               string
+	EtsiNamespaceAtTopLevel           bool
+	SignatureId                       string
+	SignedInfoId                      string
+	SignatureValueId                  string
+	KeyInfoId                         string
+	ObjectId                          string
+	SignedPropertiesId                string
+	ReferenceMainDocumentId           string
+	ReferencePropertiesId             string
+	IncludeKeyValue                   bool
+	IncludeSignedDataObjectProperties bool
+	SignedDataObjectDescription       string
+	ReferenceCertificate              bool
+	ReferenceDataLast                 bool
 }
 
 type SignedDataContext struct {
@@ -129,6 +149,13 @@ func namespaceTag(ns, value string) etree.Attr {
 	return a
 }
 
+func orString(s1, s2 string) string {
+	if s1 == "" {
+		return s2
+	}
+	return s1
+}
+
 //CreateSignature create filled signature element
 func CreateSignature(signedData *etree.Element, ctx *SigningContext) (*etree.Element, error) {
 
@@ -168,7 +195,7 @@ func CreateSignature(signedData *etree.Element, ctx *SigningContext) (*etree.Ele
 	object := ctx.createObject(signedProperties)
 
 	attrs := []etree.Attr{
-		{Key: "Id", Value: "Signature"},
+		{Key: idAttr, Value: orString(ctx.SignatureId, "Signature")},
 		namespaceTag(ctx.DsigNamespacePrefix, dsig.Namespace),
 	}
 
@@ -293,24 +320,47 @@ func (ctx *SigningContext) createSignedInfo(digestValueDataText string, digestVa
 		},
 		Child: []etree.Token{&transformsData, &digestMethodData, &digestValueData},
 	}
+	addIdentity(&referenceData, ctx.ReferenceMainDocumentId)
 
 	referenceProperties := etree.Element{
 		Space: ctx.DsigNamespacePrefix,
 		Tag:   dsig.ReferenceTag,
 		Attr: []etree.Attr{
-			{Key: dsig.URIAttr, Value: "#SignedProperties"},
+			{Key: dsig.URIAttr, Value: fmt.Sprintf("#%s", orString(ctx.SignedPropertiesId, "SignedProperties"))},
 			{Key: "Type", Value: "http://uri.etsi.org/01903#SignedProperties"},
 		},
 		Child: []etree.Token{&transformsProperties, &digestMethodProperties, &digestValueProperties},
+	}
+	addIdentity(&referenceProperties, ctx.ReferencePropertiesId)
+
+	refs := []etree.Token{&referenceData, &referenceProperties}
+
+	if ctx.ReferenceCertificate {
+
+	}
+
+	if ctx.ReferenceDataLast {
+		refs = append(refs[1:], refs[0])
 	}
 
 	signedInfo := etree.Element{
 		Space: ctx.DsigNamespacePrefix,
 		Tag:   dsig.SignedInfoTag,
-		Child: []etree.Token{&canonicalizationMethod, &signatureMethod, &referenceData, &referenceProperties},
+		Child: []etree.Token{&canonicalizationMethod, &signatureMethod},
 	}
 
+	signedInfo.Child = append(signedInfo.Child, refs...)
+
+	addIdentity(&signedInfo, ctx.SignedInfoId)
+
 	return &signedInfo
+}
+
+func addIdentity(elem *etree.Element, id string) {
+	if id == "" {
+		return
+	}
+	elem.Attr = append([]etree.Attr{etree.Attr{Key: idAttr, Value: id}}, elem.Attr...)
 }
 
 func (ctx *SigningContext) createSignatureValue(base64Signature string) *etree.Element {
@@ -318,28 +368,65 @@ func (ctx *SigningContext) createSignatureValue(base64Signature string) *etree.E
 		Space: ctx.DsigNamespacePrefix,
 		Tag:   dsig.SignatureValueTag,
 	}
+	addIdentity(&signatureValue, ctx.SignatureValueId)
+
 	signatureValue.SetText(base64Signature)
 	return &signatureValue
 }
 
+func (ctx *SigningContext) createKeyValue() *etree.Element {
+	modulus := etree.Element{
+		Space: ctx.DsigNamespacePrefix,
+		Tag:   "Modulus",
+	}
+	modulus.SetText(base64.StdEncoding.EncodeToString(ctx.KeyStore.PrivateKey.N.Bytes()))
+
+	exp := etree.Element{
+		Space: ctx.DsigNamespacePrefix,
+		Tag:   "Exponent",
+	}
+	exp.SetText(base64.StdEncoding.EncodeToString(big.NewInt(int64(ctx.KeyStore.PrivateKey.E)).Bytes()))
+
+	rsaKeyValue := etree.Element{
+		Space: ctx.DsigNamespacePrefix,
+		Tag:   "RSAKeyValue",
+		Child: []etree.Token{&modulus, &exp},
+	}
+
+	keyValue := etree.Element{
+		Space: ctx.DsigNamespacePrefix,
+		Tag:   "KeyValue",
+		Child: []etree.Token{&rsaKeyValue},
+	}
+
+	return &keyValue
+}
+
 func (ctx *SigningContext) createKeyInfo(base64Certificate string) *etree.Element {
 
-	x509Cerificate := etree.Element{
+	x509Certificate := etree.Element{
 		Space: ctx.DsigNamespacePrefix,
 		Tag:   dsig.X509CertificateTag,
 	}
-	x509Cerificate.SetText(base64Certificate)
+	x509Certificate.SetText(base64Certificate)
 
 	x509Data := etree.Element{
 		Space: ctx.DsigNamespacePrefix,
 		Tag:   dsig.X509DataTag,
-		Child: []etree.Token{&x509Cerificate},
+		Child: []etree.Token{&x509Certificate},
 	}
 	keyInfo := etree.Element{
 		Space: ctx.DsigNamespacePrefix,
 		Tag:   dsig.KeyInfoTag,
 		Child: []etree.Token{&x509Data},
 	}
+
+	if ctx.IncludeKeyValue {
+		keyInfo.Child = append(keyInfo.Child, ctx.createKeyValue())
+	}
+
+	addIdentity(&keyInfo, ctx.KeyInfoId)
+
 	return &keyInfo
 }
 
@@ -363,6 +450,7 @@ func (ctx *SigningContext) createObject(signedProperties *etree.Element) *etree.
 		Tag:   "Object",
 		Child: []etree.Token{&qualifyingProperties},
 	}
+	addIdentity(&object, ctx.ObjectId)
 	return &object
 }
 
@@ -446,9 +534,40 @@ func (ctx *SigningContext) createSignedProperties(signTime time.Time) *etree.Ele
 		Space: ctx.etsiPrefix(),
 		Tag:   SignedPropertiesTag,
 		Attr: []etree.Attr{
-			{Key: "Id", Value: "SignedProperties"},
+			{Key: idAttr, Value: orString(ctx.SignedPropertiesId, "SignedProperties")},
 		},
 		Child: []etree.Token{&signedSignatureProperties},
+	}
+
+	if ctx.IncludeSignedDataObjectProperties {
+		desc := etree.Element{
+			Space: ctx.etsiPrefix(),
+			Tag:   DescriptionTag,
+		}
+		desc.SetText(ctx.SignedDataObjectDescription)
+
+		mime := etree.Element{
+			Space: ctx.etsiPrefix(),
+			Tag:   MimeTypeTag,
+		}
+		mime.SetText("text/xml")
+
+		dataObjectFormat := etree.Element{
+			Space: ctx.etsiPrefix(),
+			Tag:   DataObjectFormatTag,
+			Attr: []etree.Attr{
+				{Key: "ObjectReference", Value: ctx.ReferenceMainDocumentId},
+			},
+			Child: []etree.Token{&desc, &mime},
+		}
+
+		signedDataObjectProperties := etree.Element{
+			Space: ctx.etsiPrefix(),
+			Tag:   SignedDataObjectPropertiesTag,
+			Child: []etree.Token{&dataObjectFormat},
+		}
+
+		signedProperties.Child = append(signedProperties.Child, &signedDataObjectProperties)
 	}
 
 	return &signedProperties
