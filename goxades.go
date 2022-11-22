@@ -73,6 +73,7 @@ type SigningContext struct {
 	SignedDataObjectDescription       string
 	ReferenceCertificate              bool
 	ReferenceDataLast                 bool
+	ReferenceAvoidTransformElements   bool
 }
 
 type SignedDataContext struct {
@@ -178,8 +179,18 @@ func CreateSignature(signedData *etree.Element, ctx *SigningContext) (*etree.Ele
 		return nil, err
 	}
 
+	keyInfo := ctx.createKeyInfo(base64.StdEncoding.EncodeToString(ctx.KeyStore.CertBinary))
+
+	digestKeyInfo := ""
+	if ctx.ReferenceCertificate {
+		digestKeyInfo, err = DigestValue(keyInfo, &ctx.PropertiesContext.Canonicalizer, ctx.PropertiesContext.Hash)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	//SignatureValue
-	signedInfo := ctx.createSignedInfo(string(digestData), string(digestProperties))
+	signedInfo := ctx.createSignedInfo(digestData, digestProperties, digestKeyInfo)
 	qualifiedSignedInfo := ctx.createQualifiedSignedInfo(signedInfo)
 
 	if err != nil {
@@ -191,7 +202,6 @@ func CreateSignature(signedData *etree.Element, ctx *SigningContext) (*etree.Ele
 	}
 
 	signatureValue := ctx.createSignatureValue(signatureValueText)
-	keyInfo := ctx.createKeyInfo(base64.StdEncoding.EncodeToString(ctx.KeyStore.CertBinary))
 	object := ctx.createObject(signedProperties)
 
 	attrs := []etree.Attr{
@@ -225,7 +235,7 @@ func (ctx *SigningContext) createQualifiedSignedInfo(signedInfo *etree.Element) 
 	return qualifiedSignedInfo
 }
 
-func (ctx *SigningContext) createSignedInfo(digestValueDataText string, digestValuePropertiesText string) *etree.Element {
+func (ctx *SigningContext) createSignedInfo(digestValueDataText, digestValuePropertiesText, digestValueKeyInfoText string) *etree.Element {
 	var transformEnvSign etree.Element
 	if ctx.DataContext.IsEnveloped {
 		transformEnvSign = etree.Element{
@@ -260,7 +270,10 @@ func (ctx *SigningContext) createSignedInfo(digestValueDataText string, digestVa
 	if ctx.DataContext.IsEnveloped {
 		transformsData.AddChild(&transformEnvSign)
 	}
-	transformsData.AddChild(&transformData)
+
+	if !ctx.ReferenceAvoidTransformElements {
+		transformsData.AddChild(&transformData)
+	}
 
 	digestMethodData := etree.Element{
 		Space: ctx.DsigNamespacePrefix,
@@ -320,6 +333,7 @@ func (ctx *SigningContext) createSignedInfo(digestValueDataText string, digestVa
 		},
 		Child: []etree.Token{&transformsData, &digestMethodData, &digestValueData},
 	}
+
 	addIdentity(&referenceData, ctx.ReferenceMainDocumentId)
 
 	referenceProperties := etree.Element{
@@ -331,12 +345,39 @@ func (ctx *SigningContext) createSignedInfo(digestValueDataText string, digestVa
 		},
 		Child: []etree.Token{&transformsProperties, &digestMethodProperties, &digestValueProperties},
 	}
+
+	if ctx.ReferenceAvoidTransformElements {
+		referenceProperties.Child = referenceProperties.Child[1:]
+	}
+
 	addIdentity(&referenceProperties, ctx.ReferencePropertiesId)
 
 	refs := []etree.Token{&referenceData, &referenceProperties}
 
 	if ctx.ReferenceCertificate {
+		digestMethodCert := etree.Element{
+			Space: ctx.DsigNamespacePrefix,
+			Tag:   dsig.DigestMethodTag,
+			Attr: []etree.Attr{
+				{Key: dsig.AlgorithmAttr, Value: digestAlgorithmIdentifiers[ctx.DataContext.Hash]},
+			},
+		}
 
+		digestValueCert := etree.Element{
+			Space: ctx.DsigNamespacePrefix,
+			Tag:   dsig.DigestValueTag,
+		}
+		digestValueCert.SetText(digestValueKeyInfoText)
+
+		referenceCert := etree.Element{
+			Space: ctx.DsigNamespacePrefix,
+			Tag:   dsig.ReferenceTag,
+			Attr: []etree.Attr{
+				{Key: dsig.URIAttr, Value: fmt.Sprintf("#%s", orString(ctx.KeyInfoId, "Certificate"))},
+			},
+			Child: []etree.Token{&digestMethodCert, &digestValueCert},
+		}
+		refs = append(refs, &referenceCert)
 	}
 
 	if ctx.ReferenceDataLast {
